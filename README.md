@@ -23,7 +23,7 @@ Our analysis leverages survey data that includes:
 - Work hours and job characteristics
 - Demographics
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 .
