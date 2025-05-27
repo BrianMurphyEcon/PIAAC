@@ -9,7 +9,7 @@ save "$crosswalks\occ2010_occ1990_occsoc_crosswalk.dta", replace
 * Step 2: Merge this with the ONET Measures
 
 use "$crosswalks\occ2010_occ1990_occsoc_crosswalk.dta", clear
-merge m:1 occ2010 using "$temp\BrianOccCodeCrosswalk_clean.dta", keep(1 3)
+merge 1:1 occ2010 using "$temp\BrianOccCodeCrosswalk_clean.dta", keep(1 3)
 rename occ1990 occ1990u
 drop _merge
 tostring SOCCode, replace
@@ -31,6 +31,7 @@ save "$temp\1990_2010_Merged_DOT_ONET_Final.dta", replace
 * From here, we just need to merge PIAAC to output from R
 * Duplicates of ISCO08, take the average
 
+
 use "$data\onet_with_isco08", clear
 drop if ISCO08 == .
 drop occ1990u occ2010 occsoc Occupation2010Description SOCCode Census SOC ISCO_title skill_level major_group _merge
@@ -39,11 +40,34 @@ collapse (mean) ehf finger dcp sts math zehf zfinger zdcp zsts zmath ztask_abstr
 save "$data\onet_with_isco08_collapsed", replace
 
 use "$data\piaac_cleaned", clear
+keep if age >= 18
+keep if age <=65
+keep if hours >= 30
+drop if hours == .
+keep if emp == 1
+
+** In Our Sample, we Have 100,169 people between the ages of 18 to 65 who are employed, and work over 30 hours a week
+gen no_occ4 = (occ_4 == . )
+tab no_occ4
+
+** 20,871 do not have an occ_4 score reported. 79,298 have an occ_4
+
 rename occ_4 ISCO08
 merge m:1 ISCO08 using "$data\onet_with_isco08_collapsed"
 
 count if !missing(ISCO08)
 count if !missing(occ_2)
+count if !missing(ztask_abstract)
+
+gen occ_4_nomatch = (!missing(ISCO08) & ztask_abstract == .)
+tab occ_4_nomatch
+
+* Of the 79,298 have an occ_4, 27,872 does not have a match on the occ_4 the crosswalk on DOT_ONET
+* Leaves us with 51,426 people with matched occ_4
+
+tab occ_4_nomatch no_occ4
+
 
 save "$data\piaac_merged_isco_final.dta", replace
+
 
