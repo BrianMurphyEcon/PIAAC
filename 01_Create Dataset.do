@@ -1,6 +1,61 @@
+** Step 0: Create Crosswalk from Census2010 to Census 1990 to SOC to ISCO
+
+/*
+use "$crosswalks\occ2010_occ1990_occsoc_crosswalk.dta", clear
+gen occsoc_prefix = substr(occsoc, 1, 4)  
+tempfile occsoc_cleaned
+save `occsoc_cleaned'
+
+use "$crosswalks\isco_soc_crosswalk.dta", clear
+
+tostring SOCCode, replace force
+gen soc_prefix = substr(SOCCode, 1, 4)
+rename soc_prefix occsoc_prefix
+
+drop part Comment81711 SOCTitle
+
+joinby occsoc_prefix using `occsoc_cleaned'
+
+save "$temp\merged_crosswalk.dta", replace
+*/
+
+
+use "$crosswalks\occ2010_occ1990_occsoc_crosswalk.dta", clear
+gen occsoc_clean = substr(occsoc, 1, 4)
+tempfile occsoc_cleaned
+save `occsoc_cleaned'
+
+use "$crosswalks\isco_soc_crosswalk.dta", clear
+
+tostring SOCCode, replace force
+gen SOCCode_clean = substr(SOCCode, 1, 4)
+
+tempfile full_match
+rename SOCCode occsoc
+merge m:1 occsoc using `occsoc_cleaned'
+gen match_type = "full" if _merge == 3
+keep if _merge == 3
+save `full_match'
+
+use "$crosswalks\isco_soc_crosswalk.dta", clear
+tostring SOCCode, replace force
+gen SOCCode_clean = substr(SOCCode, 1, 4)
+rename SOCCode_clean occsoc_clean
+save "$temp\iscosocclean.dta", replace
+
+use `occsoc_cleaned', clear
+merge m:m occsoc_clean using "$temp\iscosocclean.dta"
+
+append using `full_match'
+
+drop part Comment81711 SOCTitle
+
+export delimited using "$crosswalks\merged_crosswalk2.csv", replace nolabel
+
+
 * Step 1: Create a Census 2010 to Census 1990 Crosswalk, also including messy SOC Code
 
-use "C:\Users\bmmur\UH-ECON Dropbox\Brian Murphy\Chinhui Work\PIAAC\crosswalks\usa_00026.dta", clear
+use "$crosswalks\usa_00026.dta", clear
 drop if missing(occ1990) | missing(occ2010) | missing(occsoc)
 keep occ1990 occ2010 occsoc
 duplicates drop occ2010, force
@@ -30,7 +85,6 @@ save "$temp\1990_2010_Merged_DOT_ONET_Final.dta", replace
 * Step 3: Run the R Code: This code essentially takes the 2010 Census Code and Maps it to the ISCO Code
 * From here, we just need to merge PIAAC to output from R
 * Duplicates of ISCO08, take the average
-
 
 use "$data\onet_with_isco08", clear
 drop if ISCO08 == .
