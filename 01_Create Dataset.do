@@ -16,10 +16,10 @@ drop part Comment81711 SOCTitle
 
 joinby occsoc_prefix using `occsoc_cleaned'
 
-save "$temp\merged_crosswalk.dta", replace
+export delimited using  "$crosswalks\merged_crosswalk.csv", replace nolabel
 */
 
-
+/*
 use "$crosswalks\occ2010_occ1990_occsoc_crosswalk.dta", clear
 gen occsoc_clean = substr(occsoc, 1, 4)
 tempfile occsoc_cleaned
@@ -51,7 +51,42 @@ append using `full_match'
 drop part Comment81711 SOCTitle
 
 export delimited using "$crosswalks\merged_crosswalk2.csv", replace nolabel
+*/
 
+/*
+use "$crosswalks\occ2010_occ1990_occsoc_crosswalk.dta", clear
+gen occsoc_clean = regexs(1) if regexm(occsoc, "^(.*?)[XY]+$")
+replace occsoc_clean = occsoc if missing(occsoc_clean)
+tempfile occsoc_cleaned
+save `occsoc_cleaned'
+
+use "$crosswalks\isco_soc_crosswalk.dta", clear
+tostring SOCCode, replace force
+gen SOCCode_clean = substr(SOCCode, 1, 4)
+
+tempfile full_match
+rename SOCCode occsoc
+merge m:1 occsoc using `occsoc_cleaned'
+gen match_type = "full" if _merge == 3
+keep if _merge == 3
+save `full_match'
+
+use "$crosswalks\isco_soc_crosswalk.dta", clear
+tostring SOCCode, replace force
+gen SOCCode_clean = substr(SOCCode, 1, 4)
+rename SOCCode_clean occsoc_clean
+save "$temp\iscosocclean.dta", replace
+
+use `occsoc_cleaned', clear
+merge m:m occsoc_clean using "$temp\iscosocclean.dta", keep (3)
+
+append using `full_match'
+
+drop part Comment81711 SOCTitle
+drop _merge
+save "$crosswalks\merged_crosswalk3.dta", replace
+export delimited using "$crosswalks\merged_crosswalk3.csv", replace nolabel
+*/
 
 * Step 1: Create a Census 2010 to Census 1990 Crosswalk, also including messy SOC Code
 
@@ -85,6 +120,34 @@ save "$temp\1990_2010_Merged_DOT_ONET_Final.dta", replace
 * Step 3: Run the R Code: This code essentially takes the 2010 Census Code and Maps it to the ISCO Code
 * From here, we just need to merge PIAAC to output from R
 * Duplicates of ISCO08, take the average
+
+
+
+
+* Analyze the ISCO08 to SOC Crosswalk
+
+use "$crosswalks\isco_soc_crosswalk.dta", clear
+keep SOCCode ISCO08Code
+tostring ISCO08Code SOCCode, replace
+replace ISCO08Code = trim(ISCO08Code)
+replace SOCCode = trim(SOCCode)
+
+bysort SOCCode (ISCO08Code): gen n = _n
+reshape wide ISCO08Code, i(SOCCode) j(n)
+sort SOCCode
+
+save "$crosswalks\isco_soc_crosswalk_wide.dta", replace
+
+use "$data\onet_with_isco08.dta", clear
+replace SOCCode = trim(SOCCode)
+replace SOCCode = occsoc if missing(SOCCode) & !missing(occsoc)
+replace SOCCode = subinstr(SOCCode, "-", "", .)
+drop _merge
+merge 1:1 SOCCode using "$crosswalks\isco_soc_crosswalk_wide.dta"
+
+
+*** Figure Out How To Merge ISCO Codes
+
 
 use "$data\onet_with_isco08", clear
 drop if ISCO08 == .

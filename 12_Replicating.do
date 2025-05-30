@@ -1,16 +1,20 @@
-use "$data\piaac_merged_final.dta", clear
+use "$data\piaac_merged_isco_final.dta", clear
 
 *** Replicate Figure 2
 
 keep if hours >=30
 keep if age >= 18
 keep if age <= 65
-*** MEN ONLY
+keep if female == 0
+drop if ISCO08 ==.
+drop if ztask_abstract == .
+
 *** Calculate ZOVERWORK BY COUNTRY
 gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2)
+egen zoverwork2 = std(overwork2), by(country)
 
-collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region occ1990u)
+
+collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region ISCO08)
 
 drop if region == ""
 levelsof region, local(regions)
@@ -61,14 +65,20 @@ foreach r of local regions {
 }
 
 *** Replicate Table 1
-use "$data\piaac_merged_final.dta", clear
+use "$data\piaac_merged_isco_final.dta", clear
+
+*** Replicate Figure 2
 
 keep if hours >=30
 keep if age >= 18
 keep if age <= 65
-*** JUST MEN
+keep if female == 0
+drop if ISCO08 ==.
+drop if ztask_abstract == .
+
+*** Calculate ZOVERWORK BY COUNTRY
 gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2)
+egen zoverwork2 = std(overwork2), by(country)
 
 gen zclaudia=(zonet_ch_1 + zonet_ch_2 + zonet_ch_3 + zonet_ch_4 + zonet_ch_5)/5
 
@@ -106,11 +116,18 @@ foreach r of local regions {
 
 *** Replicate Table 3
 
-use "$data\piaac_merged_final.dta", clear
+*** Replicate Table 1
+use "$data\piaac_merged_isco_final.dta", clear
 
-* Rename variables for consistency, following the structure of Juhn and Rubinstein
+keep if hours >=30
+keep if age >= 18
+keep if age <= 65
+drop if ISCO08 ==.
+drop if ztask_abstract == .
+
+*** Calculate ZOVERWORK BY COUNTRY
 gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2)
+egen zoverwork2 = std(overwork2), by(country)
 
 gen T1 = ztask_abstract
 gen T2 = ztask_routine
@@ -134,16 +151,16 @@ keep if age <= 65
 
 eststo clear
 
-xi: reghdfe female T1 T2 T3 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+xi: reghdfe female T1 T2 T3 [aw=weight], absorb(country#edu_group#age_group) vce(cluster id_unique)
 eststo EQ1
 
-xi: reghdfe female T1 T2 T3 S1 S2 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+xi: reghdfe female T1 T2 T3 S1 S2 [aw=weight], absorb(country#edu_group#age_group) vce(cluster id_unique)
 eststo EQ2
 
-xi: reghdfe female T1 T2 T3 Z1 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+xi: reghdfe female T1 T2 T3 Z1 [aw=weight], absorb(country#edu_group#age_group) vce(cluster id_unique)
 eststo EQ3
 
-xi: reghdfe female T1 T2 T3 Z1 S1 S2 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+xi: reghdfe female T1 T2 T3 Z1 S1 S2 [aw=weight], absorb(country#edu_group#age_group) vce(cluster id_unique)
 eststo EQ4
 
 esttab EQ1 EQ2 EQ3 EQ4 using "$tab3/Table3_PIAAC_Female_Share_Task_Time.tex", replace f ///
@@ -163,16 +180,16 @@ foreach r of local regions {
     preserve
     keep if region == "`r'"
 
-    xi: reghdfe female T1 T2 T3 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+    xi: reghdfe female T1 T2 T3 [aw=weight], absorb(country#edu_group#age_group) vce(cluster id_unique)
     eststo EQ1
 
-    xi: reghdfe female T1 T2 T3 S1 S2 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+    xi: reghdfe female T1 T2 T3 S1 S2 [aw=weight], absorb(country#edu_group#age_group)vce(cluster id_unique)
     eststo EQ2
 
-    xi: reghdfe female T1 T2 T3 Z1 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+    xi: reghdfe female T1 T2 T3 Z1 [aw=weight], absorb(country#edu_group#age_group) vce(cluster id_unique)
     eststo EQ3
 
-    xi: reghdfe female T1 T2 T3 Z1 S1 S2 [aw=weight], absorb(country edu age) vce(cluster id_unique)
+    xi: reghdfe female T1 T2 T3 Z1 S1 S2 [aw=weight], absorb(country#edu_group#age_group) vce(cluster id_unique)
     eststo EQ4
 	
 	 esttab EQ1 EQ2 EQ3 EQ4 using "$tab3/Table3_PIAAC_Region`r'.tex", replace f ///

@@ -41,11 +41,13 @@ restore
 
 distinct occ_2
 
-use "$data\piaac_merged_final.dta", clear
+use "$data\piaac_merged_isco_final.dta", clear
 keep if female == 0
 keep if hours >=30
 keep if age >= 18
 keep if age <= 65
+drop if ISCO08 == .
+drop if ztask_abstract ==.
 gen overwork2 = (hours >= 50 & hours != .)
 rename overwork2 overwork_ratio2
 egen zoverwork2 = std(overwork_ratio2)
@@ -58,7 +60,7 @@ preserve
 keep if region == "NEurope"
 gen overwork2 = (hours >= 50 & hours != .)
 *collapse (mean) overwork2 [pw=weight], by(ISCO08Code)
-collapse (mean) overwork2 [pw=weight], by(occ1990u)
+collapse (mean) overwork2 [pw=weight], by(ISCO08)
 rename overwork2 overwork_ratio2
 egen zoverwork2 = std(overwork_ratio2)
 save "$temp\overwork_NEurope.dta", replace
@@ -68,7 +70,7 @@ restore
 preserve 
 keep if region == "NEurope"
 drop _merge
-merge m:1 occ1990u using "$temp\overwork_NEurope.dta"
+merge m:1 ISCO08 using "$temp\overwork_NEurope.dta"
 corr ztask_abstract zoverwork2
 twoway (lfitci ztask_abstract zoverwork2), ///
     title("Northern Europe: Abstract and Overwork") ///
