@@ -107,6 +107,16 @@ tostring occsoc, replace
 replace SOCCode = occsoc if missing(SOCCode) & !missing(occsoc)
 save "$temp\1990_2010_Partial_Cleaned.dta", replace
 
+
+
+use "$crosswalks\isco_soc_crosswalk.dta", clear
+duplicates drop SOCCode, force
+merge m:1 SOCCode using "$temp\1990_2010_Partial_Cleaned.dta"
+
+
+
+
+
 use "$data\1990_2010_Merge_DOT_ONET.dta", clear
 replace SOCCode = subinstr(SOCCode, "-", "", .)
 drop _merge
