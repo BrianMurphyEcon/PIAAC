@@ -46,7 +46,43 @@ use "$crosswalks\isco_soc_crosswalk", clear
 destring SOCCode, replace force
 duplicates drop SOCCode, force
 merge 1:m SOCCode using "$temp\3column"
-export excel "$crosswalks\CW_uniqueSOC.xlsx", firstrow(variables) replace 
+*export excel "$crosswalks\CW_uniqueSOC.xlsx", firstrow(variables) replace 
+preserve
+	keep if _merge == 3
+	save "$temp\merged_step1.dta", replace
+restore
+
+* Fix Failed Merges
+preserve
+	keep if _merge == 2
+	tostring SOCCode, gen(SOC_str) format(%06.0f)
+	gen SOCCode5 = substr(SOC_str, 1, 5)
+	destring SOCCode5, replace
+	drop SOC_str
+	drop _merge
+	drop ISCO08Code ISCO08TitleEN part SOCTitle Comment81711
+	save "$temp\unmatched_SOC6_using.dta", replace
+restore
+
+preserve
+	keep if _merge == 1
+	tostring SOCCode, gen(SOC_str) format(%06.0f)
+	gen SOCCode5 = substr(SOC_str, 1, 5)
+	destring SOCCode5, replace
+	drop SOC_str
+	drop _merge
+	drop Comment81711 part occ2010 SOCtitle occ1990 occsoc
+	save "$temp\unmatched_SOC6_master.dta", replace
+restore
+
+use "$temp\unmatched_SOC6_master.dta", clear
+merge m:m SOCCode5 using "$temp\unmatched_SOC6_using.dta"
+save "$temp\merged_step2.dta", replace
+
+use "$temp\merged_step1.dta", clear
+append using "$temp\merged_step2.dta"
+
+export excel "$crosswalks\CW_uniqueSOC_revision.xlsx", firstrow(variables) replace
 
 ** Now, for proof of concept, keep ALL SOC Codes.
 use "$crosswalks\isco_soc_crosswalk", clear
