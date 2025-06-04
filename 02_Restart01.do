@@ -116,16 +116,6 @@ append using "$temp\merged_step3.dta"
 export excel "$crosswalks\CW_uniqueSOC_revision2.xlsx", firstrow(variables) replace
 
 
-
-
-
-
-
-
-
-
-
-
 ** Now, for proof of concept, keep ALL SOC Codes.
 use "$crosswalks\isco_soc_crosswalk", clear
 destring SOCCode, replace force
@@ -196,6 +186,5 @@ save "$temp\merged_all_step3.dta", replace
 use "$temp\merged_all_step1.dta", clear
 append using "$temp\merged_all_step2.dta"
 append using "$temp\merged_all_step3.dta"
-
 
 export excel "$crosswalks\CW_ALLSOC_revision.xlsx", firstrow(variables) replace
