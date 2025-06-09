@@ -118,11 +118,23 @@ append using "$temp\merged_step3.dta"
 
 export excel "$crosswalks\CW_uniqueSOC_revision_4.xlsx", firstrow(variables) replace nolabel
 
+bysort ISCO08Code (occ1990): gen n_occ1990 = _N
+bysort ISCO08Code occ1990: gen tag = _n == 1
 
+bysort occ1990 (ISCO08Code): gen n_isco = _N
 
+gen match_type = .
+replace match_type = 1 if n_isco == 1 & n_occ1990 == 1   // 1-to-1
+replace match_type = 2 if n_isco > 1 & n_occ1990 == 1    // m:1 (many ISCO to 1 occ)
+replace match_type = 3 if n_isco == 1 & n_occ1990 > 1    // 1:m (1 ISCO to many occ)
 
+keep if tag == 1
 
-
+tab match_type, matcell(freq)
+scalar total = freq[1,1] + freq[2,1] + freq[3,1]
+di "Fraction 1:1 = " freq[1,1] / total
+di "Fraction m:1 (ISCO to occ2010) = " freq[2,1] / total
+di "Fraction 1:m (ISCO to multiple occ2010) = " freq[3,1] / total
 
 
 
