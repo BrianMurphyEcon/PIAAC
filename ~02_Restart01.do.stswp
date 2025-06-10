@@ -115,26 +115,75 @@ use "$temp\merged_step1.dta", clear
 append using "$temp\merged_step2.dta"
 append using "$temp\merged_step3.dta"
 
-
 export excel "$crosswalks\CW_uniqueSOC_revision_4.xlsx", firstrow(variables) replace nolabel
 
-bysort ISCO08Code (occ1990): gen n_occ1990 = _N
-bysort ISCO08Code occ1990: gen tag = _n == 1
+preserve 
+	bysort ISCO08Code (occ1990): gen n_occ1990 = _N
+	bysort ISCO08Code occ1990: gen tag = _n == 1
 
-bysort occ1990 (ISCO08Code): gen n_isco = _N
+	bysort occ1990 (ISCO08Code): gen n_isco = _N
 
-gen match_type = .
-replace match_type = 1 if n_isco == 1 & n_occ1990 == 1   // 1-to-1
-replace match_type = 2 if n_isco > 1 & n_occ1990 == 1    // m:1 (many ISCO to 1 occ)
-replace match_type = 3 if n_isco == 1 & n_occ1990 > 1    // 1:m (1 ISCO to many occ)
+	gen match_type = .
+	replace match_type = 1 if n_isco == 1 & n_occ1990 == 1   // 1-to-1
+	replace match_type = 2 if n_isco > 1 & n_occ1990 == 1    // m:1 (many ISCO to 1 occ)
+	replace match_type = 3 if n_isco == 1 & n_occ1990 > 1    // 1:m (1 ISCO to many occ)
 
-keep if tag == 1
+	keep if tag == 1
 
-tab match_type, matcell(freq)
-scalar total = freq[1,1] + freq[2,1] + freq[3,1]
-di "Fraction 1:1 = " freq[1,1] / total
-di "Fraction m:1 (ISCO to occ2010) = " freq[2,1] / total
-di "Fraction 1:m (ISCO to multiple occ2010) = " freq[3,1] / total
+	tab match_type, matcell(freq)
+	scalar total = freq[1,1] + freq[2,1] + freq[3,1]
+	di "Fraction 1:1 = " freq[1,1] / total
+	di "Fraction m:1 (ISCO to occ1990) = " freq[2,1] / total
+	di "Fraction 1:m (ISCO to multiple occ1990) = " freq[3,1] / total
+restore
+
+preserve
+	drop if missing(ISCO08Code) | missing(occ1990)
+	contract ISCO08Code occ1990
+	contract ISCO08Code, freq(n_occ1990)
+	keep if n_occ1990 > 1
+	tempfile multi
+	save "$temp\multi.dta", replace
+
+	use "$temp\merged_step1.dta", clear
+	append using "$temp\merged_step2.dta"
+	append using "$temp\merged_step3.dta"
+	drop _merge
+	
+	merge m:1 ISCO08Code using "$temp\multi.dta", keep(3)
+
+	export excel "$crosswalks\ISCO_multiple_occ1990_one.xlsx", firstrow(variables) replace nolabel
+restore
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
