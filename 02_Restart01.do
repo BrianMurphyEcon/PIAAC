@@ -116,6 +116,8 @@ append using "$temp\merged_step2.dta"
 append using "$temp\merged_step3.dta"
 
 export excel "$crosswalks\CW_uniqueSOC_revision_4.xlsx", firstrow(variables) replace nolabel
+drop _merge
+save "$crosswalks\CW_uniqueSOC_revision_4.dta", replace
 
 preserve 
 	bysort ISCO08Code (occ1990): gen n_occ1990 = _N
@@ -152,11 +154,27 @@ preserve
 	
 	merge m:1 ISCO08Code using "$temp\multi.dta", keep(3)
 
-	export excel "$crosswalks\ISCO_multiple_occ1990_one.xlsx", firstrow(variables) replace nolabel
+	export excel "$crosswalks\ISCO_multiple_occ1990_one.xlsx", firstrow(variables) replace
 restore
 
 
+preserve
+	drop if missing(ISCO08Code) | missing(occ1990)
+	contract occ1990 ISCO08Code
+	contract occ1990, freq(n_ISCO08Code)
+	keep if n_ISCO08Code > 1
+	tempfile multi2
+	save "$temp\multi2.dta", replace
 
+	use "$temp\merged_step1.dta", clear
+	append using "$temp\merged_step2.dta"
+	append using "$temp\merged_step3.dta"
+	drop _merge
+	
+	merge m:1 occ1990 using "$temp\multi2.dta", keep(3)
+
+	export excel "$crosswalks\occ1990_multiple_isco_one.xlsx", firstrow(variables) replace
+restore
 
 
 
