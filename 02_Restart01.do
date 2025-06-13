@@ -38,14 +38,15 @@ destring SOCCode, replace force
 merge m:1 occ2010 using "$temp\ACS_occ2010CW"
 drop _merge
 duplicates list SOCCode 
+drop if SOCCode == .
 save "$temp\3column.dta", replace
 
 ** Now, for proof of concept, drop duplicates of soc in isco soc cw, and merge above
 
 use "$crosswalks\isco_soc_crosswalk", clear
 destring SOCCode, replace force
-duplicates drop SOCCode, force
-merge 1:m SOCCode using "$temp\3column"
+*duplicates drop SOCCode, force
+merge m:1 SOCCode using "$temp\3column"
 *export excel "$crosswalks\CW_uniqueSOC.xlsx", firstrow(variables) replace 
 preserve
 	keep if _merge == 3

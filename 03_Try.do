@@ -38,20 +38,17 @@ rename occ_4 ISCO08Code
 bysort ISCO08Code: gen n_obs = _N
 *duplicates drop ISCO08Code, force
 merge m:1 ISCO08Code using "$crosswalks\Brian_Master.dta"
-keep ISCO08Code occ1990 n_obs
-duplicates drop ISCO08Code, force
-save "$temp\PIACC_Master_merge"
+*merge 1:m ISCO08Code using "$crosswalks\CW_uniqueSOC_revision_4.dta"
+keep ISCO08Code occ1990 n_obs _merge
+duplicates drop ISCO08Code, force // This command is kept for the first preserve
+drop _merge
+save "$temp\PIACC_Master_merge", replace
 
 * Now, merge back to Master
 
-import excel "$crosswalks\CW_uniqueSOC_revision_manualupdate.xlsx", firstrow clear
-drop _merge
-*duplicates drop ISCO08Code, force
-save "$crosswalks\Brian_Master.dta", replace
-
 use "$temp\PIACC_Master_merge", clear
-merge 1:m ISCO08Code using "$crosswalks\Brian_Master.dta"
-sort ISCO08Code
+merge m:m ISCO08Code using "$crosswalks\Brian_Master.dta"
+drop _merge
 
 preserve	
 	
@@ -70,31 +67,33 @@ preserve
 	merge m:1 occ1990 using "`multi_mapping'", keep(3) nogenerate
 	sort occ1990 ISCO08Code
 	
+	duplicates drop ISCO08Code, force
+	
 	export excel "$crosswalks\PIAAC_occ1990_multiple_isco.xlsx", firstrow(variables) replace
 
 restore
 	
+preserve	
+	
+	drop if missing(ISCO08Code) | missing(occ1990)
+    
+    contract ISCO08Code occ1990
+	contract ISCO08Code, freq(n_occ1990)
+	keep if n_occ1990 > 1
+	tempfile multi_mapping2
+    save "`multi_mapping2'", replace
+	
+	use "$temp\PIACC_Master_merge", clear
+	sort occ1990
+	duplicates drop occ1990, force
+	merge 1:m ISCO08Code using "$crosswalks\Brian_Master.dta"
+	drop if missing(ISCO08Code) | missing(occ1990)
 
+	merge m:1 ISCO08Code using "`multi_mapping2'", keep(3) nogenerate
+	sort occ1990 ISCO08Code
+	duplicates drop ISCO08Code, force
+	
+	export excel "$crosswalks\PIAAC_isco_multiple_occ1990.xlsx", firstrow(variables) replace
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+restore
 
