@@ -1,4 +1,5 @@
 
+
 * Step 1: Create a Census 2010 to Census 1990 Crosswalk, also including messy SOC Code
 
 use "$crosswalks\usa_00026.dta", clear
