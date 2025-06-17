@@ -1,20 +1,27 @@
-use "$data\piaac_merged_isco_final.dta", clear
+use "$data\piaac_cleaned", clear
 
-*** Replicate Figure 2
-
+*Selection Statement
 keep if hours >=30
 keep if age >= 18
 keep if age <= 65
 keep if female == 0
-drop if ISCO08 ==.
+drop if occ_4 ==.
+rename occ_4 ISCO08Code
+drop if hours == .
+
+merge m:1 ISCO08Code using "$crosswalks\UniqueOcc1990.dta", keep(3)
+drop _merge
+rename occ1990 occ1990u
+merge m:1 occ1990u using "$data\DOT_ONET_time_occ1990u", keep(3)
+
+drop if country == 19
 drop if ztask_abstract == .
 
-*** Calculate ZOVERWORK BY COUNTRY
+*** Calculate ZOVERWORK by Region
 gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2), by(country)
+egen zoverwork2 = std(overwork2), by(region)
 
-
-collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region ISCO08)
+collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region occ1990u)
 
 drop if region == ""
 levelsof region, local(regions)
@@ -64,21 +71,28 @@ foreach r of local regions {
     restore
 }
 
-*** Replicate Table 1
-use "$data\piaac_merged_isco_final.dta", clear
+use "$data\piaac_cleaned", clear
 
-*** Replicate Figure 2
-
+*Selection Statement
 keep if hours >=30
 keep if age >= 18
 keep if age <= 65
 keep if female == 0
-drop if ISCO08 ==.
-drop if ztask_abstract == .
+drop if occ_4 ==.
+rename occ_4 ISCO08Code
+drop if hours == .
 
-*** Calculate ZOVERWORK BY COUNTRY
+merge m:1 ISCO08Code using "$crosswalks\UniqueOcc1990.dta", keep(3)
+drop _merge
+rename occ1990 occ1990u
+merge m:1 occ1990u using "$data\DOT_ONET_time_occ1990u", keep(3)
+
+drop if ztask_abstract == .
+drop if country == 19
+
+*** Calculate ZOVERWORK by Region
 gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2), by(country)
+egen zoverwork2 = std(overwork2), by(region)
 
 gen zclaudia=(zonet_ch_1 + zonet_ch_2 + zonet_ch_3 + zonet_ch_4 + zonet_ch_5)/5
 
@@ -114,20 +128,8 @@ foreach r of local regions {
     restore
 }
 
-*** Replicate Table 3
 
 *** Replicate Table 1
-use "$data\piaac_merged_isco_final.dta", clear
-
-keep if hours >=30
-keep if age >= 18
-keep if age <= 65
-drop if ISCO08 ==.
-drop if ztask_abstract == .
-
-*** Calculate ZOVERWORK BY COUNTRY
-gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2), by(country)
 
 gen T1 = ztask_abstract
 gen T2 = ztask_routine

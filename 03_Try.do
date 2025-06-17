@@ -41,10 +41,29 @@ bysort ISCO08Code: gen n_obs = _N
 keep ISCO08Code n_obs
 duplicates drop ISCO08Code, force
 
-merge 1:m ISCO08Code using "$crosswalks\Brian_Master.dta"
+merge 1:m ISCO08Code using "$crosswalks\Brian_Master.dta", keep(3)
 
 keep ISCO08Code n_obs occ1990 _merge
 sort ISCO08Code
+duplicates drop ISCO08Code occ1990, force
+drop if occ1990 == .
+drop if ISCO08Code == .
+
+* Unique Occ1990 to Unique ISCO
+bysort ISCO08Code (occ1990): gen n_occ1990_per_isco = .
+bysort ISCO08Code (occ1990): replace n_occ1990_per_isco = _N 
+
+* Unique ISCO to many occ1990u
+bysort occ1990 (ISCO08Code): gen n_isco_per_occ1990 = .
+bysort occ1990 (ISCO08Code): replace n_isco_per_occ1990 = _N
+sort ISCO08Code
+sort occ1990
+
+* Save cases where there is only 1 occ1990 for each ISCO08
+keep if n_occ1990_per_isco == 1
+drop _merge
+save "$crosswalks\UniqueOcc1990.dta", replace
+
 
 * Understand what happens when occ1990 is missing: how big of a problem is this?
 preserve
@@ -56,7 +75,7 @@ preserve
 	di "missing: " missing_occ1990_obs[1]
 	gen pct_lost = (missing_occ1990_obs / total_obs) * 100
 
-	di "Percentage of observations that would be lost: " %4.2f pct_lost[1] "%" // 27%
+	di "Percentage of observations that would be lost: " %4.2f pct_lost[1] "%" // 28.6%
 restore
 
 * Understand what happens when 1 ISCO maps to multiple occ1990
