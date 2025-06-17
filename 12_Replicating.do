@@ -9,19 +9,37 @@ drop if occ_4 ==.
 rename occ_4 ISCO08Code
 drop if hours == .
 
+*** Calculate ZOVERWORK by Region
+*gen overwork2 = (hours >= 50 & hours != .)
+*egen zoverwork2 = std(overwork2), by(region occ1990u)
+* use weight to construct zoverwork2. check to make sure this is correct from document
+* weighted standard deviation of hours. if one standard deviation about the mean, call that zoverwork2 by country 
+
+preserve
+	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(country)
+	tempfile stats
+	save `stats'
+restore
+
+merge m:1 country using `stats', keepusing(mean_hours sd_hours)
+drop _merge
+gen zoverwork2 = hours > (mean_hours + sd_hours)
+
 merge m:1 ISCO08Code using "$crosswalks\UniqueOcc1990.dta", keep(3)
 drop _merge
 rename occ1990 occ1990u
-merge m:1 occ1990u using "$data\DOT_ONET_time_occ1990u", keep(3)
 
-drop if country == 19
+collapse (mean) zoverwork2 weight, by(region occ1990u)
+
+
+merge m:1 occ1990u using "$data\DOT_ONET_time_occ1990u", keep(3)
+drop _merge
+
+
+
 drop if ztask_abstract == .
 
-*** Calculate ZOVERWORK by Region
-gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2), by(region)
-
-collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region occ1990u)
+*collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region occ1990u)
 
 drop if region == ""
 levelsof region, local(regions)
@@ -37,7 +55,7 @@ foreach r of local regions {
         (lfitci ztask_routine zoverwork2 [aweight=weight], clpattern(dash)), ///
         xtitle("Long Hours (z-score)", size(small)) ///
         ytitle("Task Requirement (z-score)") ///
-        legend(size(small) order(1 "Abstract" 2 "Routine")) ///
+        legend(size(small) order(1 "Routine" 2 "Abstract")) ///
         ylabel(-2(1)3) ///
         title("Region `r': Abstract vs Routine", size(medsmall)) ///
         graphregion(color(white)) ///
@@ -49,7 +67,7 @@ foreach r of local regions {
         (lfitci ztask_manual zoverwork2 [aweight=weight], clpattern(dash)), ///
         xtitle("Long Hours (z-score)", size(small)) ///
         ytitle("Task Requirement (z-score)") ///
-        legend(size(small) order(1 "Abstract" 2 "Manual")) ///
+        legend(size(small) order(1 "Manual" 2 "Abstract")) ///
         ylabel(-2(1)3) ///
         title("Region `r': Abstract vs Manual", size(medsmall)) ///
         graphregion(color(white)) ///
