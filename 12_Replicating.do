@@ -1,33 +1,33 @@
 * First, Do Deming:
 
 use "$data\DOT_ONET_time_occ1990u", clear
-merge 1:m occ1990u using "$crosswalks\UniqueOcc1990.dta", keep(3) 
-drop _merge
+	merge 1:m occ1990u using "$crosswalks\UniqueOcc1990.dta", keep(3) 
+	drop _merge
 save "$temp\onet_unique", replace
 
 use "$data\DOT_ONET_time_occ1990u", clear
-merge 1:m occ1990u using "$crosswalks\DenningCaseOcc1990.dta", keep(3) 
-drop _merge
+	merge 1:m occ1990u using "$crosswalks\DenningCaseOcc1990.dta", keep(3) 
+	drop _merge
 
-* FINISH
-preserve
-	keep occ1990u ISCO08Code
-	duplicates drop ISCO08Code, force
-	save "$temp\occ1990x", replace
-restore
+	preserve
+		keep occ1990u ISCO08Code
+		duplicates drop ISCO08Code, force
+		save "$temp\occ1990x", replace
+	restore
 
-collapse (mean) ztask_abstract ztask_routine ztask_manual, by(ISCO08Code)
+	collapse (mean) ztask_abstract ztask_routine ztask_manual, by(ISCO08Code)
 
-merge m:1 ISCO08Code using "$temp\occ1990x"
-drop _merge
-rename occ1990u occ1990x
+	merge m:1 ISCO08Code using "$temp\occ1990x"
+	drop _merge
+	rename occ1990u occ1990x
 save "$temp\onet_nonunique", replace
 
 use "$temp\onet_unique", clear
-gen occ1990x = occ1990u
-append using "$temp\onet_nonunique"
+	gen occ1990x = occ1990u
+	append using "$temp\onet_nonunique"
 save "$temp\taskmeasure_ISCO", replace // there are no duplicates in here either.
 
+*** Now, move to PIAAC Data
 use "$data\piaac_cleaned", clear
 
 *Selection Statement
@@ -103,8 +103,86 @@ foreach r of local regions {
     restore
 }
 
+*** Replicate Figure 3
+
+use "$data\piaac_cleaned", clear
+
+*Selection Statement
+keep if hours >=30
+keep if age >= 25
+keep if age <= 54
+drop if occ_4 ==.
+rename occ_4 ISCO08Code
+drop if hours == .
+
+preserve
+	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(region)
+	tempfile stats
+	save `stats'
+restore
+
+merge m:1 region using `stats', keepusing(mean_hours sd_hours)
+drop _merge
+gen zoverwork2 = hours > (mean_hours + sd_hours)
+
+merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
 
 
+gen zclaudia=(zonet_ch_1 + zonet_ch_2 + zonet_ch_3 + zonet_ch_4 + zonet_ch_5)/5
+
+label variable ztask_abstract "Abstract"
+label variable ztask_routine "Routine"
+label variable zoverwork2 "Long Hours"
+label variable zonet_ch_1 "Contact with Others"
+label variable zonet_ch_2 "Establish and Maintain Relationships"
+label variable zonet_ch_3 "Freedom to Make Decisions"
+label variable zonet_ch_4 "Structured vs. Unstructured"
+label variable zonet_ch_5 "Time Pressure"
+label variable zclaudia "O*NET Index"
+
+
+global X "ztask_abstract ztask_routine ztask_manual"
+
+gen X1 = ztask_abstract
+gen X2 = ztask_routine
+gen X3 = ztask_manual
+
+global X "X1 X2 X3"
+
+global RAW "region age"
+
+xi: reghdfe female $X [aw=weight], absorb(edu $RAW) vce(cluster occ1990x)
+
+estimates store taskmodel
+
+esttab taskmodel using "$fig3\task_coeff_table.tex", replace ///
+    se label star(* 0.10 ** 0.05 *** 0.01) ///
+    keep(X1 X2 X3) ///
+    title(Task Effects on Female Indicator)
+
+drop if region == ""
+levelsof region, local(regions)
+
+foreach r of local regions {
+	preserve
+		keep if region == "`r'"
+		
+		xi: reghdfe female $X [aw=weight], absorb(edu age) vce(cluster occ1990x)
+		estimates store taskmodel
+		
+		esttab taskmodel using "$fig3\task_coeff_region`r'.tex", replace ///
+			se label star(* 0.10 ** 0.05 *** 0.01) ///
+			keep(X1 X2 X3) ///
+			title("Region `r': Task Effects on Female Indicator")	
+    restore
+}
+
+
+
+
+
+
+* Replicate
 
 use "$data\piaac_cleaned", clear
 
@@ -112,21 +190,22 @@ use "$data\piaac_cleaned", clear
 keep if hours >=30
 keep if age >= 18
 keep if age <= 65
-keep if female == 0
 drop if occ_4 ==.
 rename occ_4 ISCO08Code
 drop if hours == .
 
-merge m:1 ISCO08Code using "$crosswalks\UniqueOcc1990.dta", keep(3)
+preserve
+	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(region)
+	tempfile stats
+	save `stats'
+restore
+
+merge m:1 region using `stats', keepusing(mean_hours sd_hours)
 drop _merge
-rename occ1990 occ1990u
-merge m:1 occ1990u using "$data\DOT_ONET_time_occ1990u", keep(3)
+gen zoverwork2 = hours > (mean_hours + sd_hours)
 
-drop if ztask_abstract == .
+merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
 
-*** Calculate ZOVERWORK by Region
-gen overwork2 = (hours >= 50 & hours != .)
-egen zoverwork2 = std(overwork2), by(region)
 
 gen zclaudia=(zonet_ch_1 + zonet_ch_2 + zonet_ch_3 + zonet_ch_4 + zonet_ch_5)/5
 
