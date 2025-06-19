@@ -1,4 +1,27 @@
-use "$data\piaac_merged_final.dta", clear
+use "$data\piaac_cleaned", clear
+
+*Selection Statement
+keep if hours >=30
+keep if age >= 18
+keep if age <= 65
+*keep if female == 0
+drop if occ_4 ==.
+rename occ_4 ISCO08Code
+drop if hours == .
+
+preserve
+	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(region)
+	tempfile stats
+	save `stats'
+restore
+
+merge m:1 region using `stats', keepusing(mean_hours sd_hours)
+drop _merge
+gen zoverwork2 = hours > (mean_hours + sd_hours)
+
+merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
+
+drop if ztask_abstract == .
 
 describe female age pv*
 
@@ -176,7 +199,7 @@ margins female#child, over(num_score_group)
 
 marginsplot, xdimension(num_score_group) ///
   title("Predicted Abstract Task Score by Skill, Gender, and Parental Status") ///
-    legend(order(1 "Men w/o child" 2 "Men w child" 3 "Women w/0 child" 4 "Women w/ child")) ///
+    legend(order(1 "Men w/o child" 2 "Men w child" 3 "Women w/o child" 4 "Women w/ child")) ///
   ytitle("Standardized Abstract Task Score") ///
   xtitle("Problem-Solving Score Decile") ///
   recast(line)

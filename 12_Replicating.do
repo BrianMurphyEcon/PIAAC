@@ -1,4 +1,4 @@
-* First, Do Denning:
+* First, Do Deming:
 
 use "$data\DOT_ONET_time_occ1990u", clear
 merge 1:m occ1990u using "$crosswalks\UniqueOcc1990.dta", keep(3) 
@@ -8,10 +8,23 @@ save "$temp\onet_unique", replace
 use "$data\DOT_ONET_time_occ1990u", clear
 merge 1:m occ1990u using "$crosswalks\DenningCaseOcc1990.dta", keep(3) 
 drop _merge
+
+* FINISH
+preserve
+	keep occ1990u ISCO08Code
+	duplicates drop ISCO08Code, force
+	save "$temp\occ1990x", replace
+restore
+
 collapse (mean) ztask_abstract ztask_routine ztask_manual, by(ISCO08Code)
+
+merge m:1 ISCO08Code using "$temp\occ1990x"
+drop _merge
+rename occ1990u occ1990x
 save "$temp\onet_nonunique", replace
 
 use "$temp\onet_unique", clear
+gen occ1990x = occ1990u
 append using "$temp\onet_nonunique"
 save "$temp\taskmeasure_ISCO", replace // there are no duplicates in here either.
 
@@ -27,12 +40,12 @@ rename occ_4 ISCO08Code
 drop if hours == .
 
 preserve
-	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(country)
+	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(region)
 	tempfile stats
 	save `stats'
 restore
 
-merge m:1 country using `stats', keepusing(mean_hours sd_hours)
+merge m:1 region using `stats', keepusing(mean_hours sd_hours)
 drop _merge
 gen zoverwork2 = hours > (mean_hours + sd_hours)
 
@@ -40,7 +53,7 @@ merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
 
 drop if ztask_abstract == .
 
-*collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region occ1990u)
+collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region occ1990x)
 
 drop if region == ""
 levelsof region, local(regions)
@@ -90,6 +103,9 @@ foreach r of local regions {
     restore
 }
 
+
+
+
 use "$data\piaac_cleaned", clear
 
 *Selection Statement
@@ -107,7 +123,6 @@ rename occ1990 occ1990u
 merge m:1 occ1990u using "$data\DOT_ONET_time_occ1990u", keep(3)
 
 drop if ztask_abstract == .
-drop if country == 19
 
 *** Calculate ZOVERWORK by Region
 gen overwork2 = (hours >= 50 & hours != .)
