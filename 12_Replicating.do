@@ -157,7 +157,7 @@ estimates store taskmodel
 
 esttab taskmodel using "$fig3\task_coeff_table.tex", replace ///
     se label star(* 0.10 ** 0.05 *** 0.01) ///
-    keep(X1 X2 X3) ///
+    keep(X1 X2 X3 _cons) ///
     title(Task Effects on Female Indicator)
 
 drop if region == ""
@@ -168,17 +168,94 @@ foreach r of local regions {
 		keep if region == "`r'"
 		
 		xi: reghdfe female $X [aw=weight], absorb(edu age) vce(cluster occ1990x)
-		estimates store taskmodel
-		
-		esttab taskmodel using "$fig3\task_coeff_region`r'.tex", replace ///
-			se label star(* 0.10 ** 0.05 *** 0.01) ///
-			keep(X1 X2 X3) ///
-			title("Region `r': Task Effects on Female Indicator")	
+		estimates store region_`r'
+	
     restore
 }
 
+esttab region_* using "$fig3\task_coeff_region.tex", replace ///
+	se label star(* 0.10 ** 0.05 *** 0.01) ///
+	keep(X1 X2 X3 _cons) ///
+	title("Task Effects on Female Indicator by Region")	///
+	collabels(`"`regions'"')
+
+*** Replicate Table 6
+
+use "$data\piaac_cleaned", clear
+
+*Selection Statement
+keep if hours >=30
+keep if age >= 25
+keep if age <= 54
+keep if female == 0
+drop if occ_4 ==.
+rename occ_4 ISCO08Code
+drop if hours == .
+
+preserve
+	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(region)
+	tempfile stats
+	save `stats'
+restore
+
+merge m:1 region using `stats', keepusing(mean_hours sd_hours)
+drop _merge
+gen zoverwork2 = hours > (mean_hours + sd_hours)
+
+merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
 
 
+gen zclaudia=(zonet_ch_1 + zonet_ch_2 + zonet_ch_3 + zonet_ch_4 + zonet_ch_5)/5
+
+* Create Cognitive Ability 
+
+gen num_score = (pvnum1 + pvnum2 + pvnum3 + pvnum4 + pvnum5 + pvnum6 + pvnum7 + pvnum8 + pvnum9 + pvnum10)/10
+gen probsolve_score = (pvpsl1 + pvpsl2 + pvpsl3 + pvpsl4 + pvpsl5 + pvpsl6 + pvpsl7 + pvpsl8 + pvpsl9 + pvpsl10)/10
+
+drop if missing(num_score) & missing(probsolve_score)
+gen total_score = num_score + probsolve_score
+egen zcog_score = std(total_score)
+
+gen cog_abstract = zcog_score * ztask_abstract
+gen cog_routine = zcog_score * ztask_routine
+gen cog_manual = zcog_score * ztask_manual
+
+* Create NonCog
+
+* No good measures
+
+* Create Social
+
+gen social = task_intrct_advise + task_intrct_coop + task_intrct_neg + task_intrct_present + task_intrct_sharing + task_intrct_teach
+encode social, gen(social_num)
+egen zsocial = std(social_num)
+
+* Regress
+
+xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zsocial cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
+estimates store skillreturns
+
+esttab skillreturns using "$tab6\skill_returns.tex", replace ///
+    se label star(* 0.10 ** 0.05 *** 0.01) ///
+    title("Returns to Skills and Job Task Requirements")
+
+drop if region == ""
+levelsof region, local(regions)
+
+foreach r of local regions {
+	preserve
+		keep if region == "`r'"
+		
+		xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zsocial cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
+		estimates store skill_`r'
+	
+    restore
+}
+
+esttab skill_* using "$tab6\skill_returns_region.tex", replace ///
+	se label star(* 0.10 ** 0.05 *** 0.01) ///
+	title("Returns to Skills and Job Task Requirements: by Region")	///
+	collabels(`"`regions'"')
 
 
 
