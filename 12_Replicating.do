@@ -204,24 +204,20 @@ gen zoverwork2 = hours > (mean_hours + sd_hours)
 
 merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
 
+* Create Cognitive Ability
+* standardize the exams first, and replace problem solve with literacy
 
-gen zclaudia=(zonet_ch_1 + zonet_ch_2 + zonet_ch_3 + zonet_ch_4 + zonet_ch_5)/5
+egen zpvnum1 = std(pvnum1)
+egen zpvlit1 = std(pvlit1)
 
-* Create Cognitive Ability 
-
-gen num_score = (pvnum1 + pvnum2 + pvnum3 + pvnum4 + pvnum5 + pvnum6 + pvnum7 + pvnum8 + pvnum9 + pvnum10)/10
-gen probsolve_score = (pvpsl1 + pvpsl2 + pvpsl3 + pvpsl4 + pvpsl5 + pvpsl6 + pvpsl7 + pvpsl8 + pvpsl9 + pvpsl10)/10
-
-drop if missing(num_score) & missing(probsolve_score)
-gen total_score = num_score + probsolve_score
-egen zcog_score = std(total_score)
+drop if missing(zpvnum1) & missing(zpvlit1)
+gen zcog_score = (zpvnum1 + zpvlit1)/2
 
 gen cog_abstract = zcog_score * ztask_abstract
 gen cog_routine = zcog_score * ztask_routine
 gen cog_manual = zcog_score * ztask_manual
 
 * Create NonCog
-
 * No good measures
 
 * Create Social
@@ -229,10 +225,23 @@ gen cog_manual = zcog_score * ztask_manual
 gen social = task_intrct_advise + task_intrct_coop + task_intrct_neg + task_intrct_present + task_intrct_sharing + task_intrct_teach
 encode social, gen(social_num)
 egen zsocial = std(social_num)
+drop if zsocial == .
+drop if wage_log == .
+
+*Mincerian Eq
+gen edu_years = .
+replace edu_years = 0  if edu == 0
+replace edu_years = 6  if edu == 1
+replace edu_years = 9  if edu == 2
+replace edu_years = 12 if edu == 3
+replace edu_years = 14 if edu == 4
+replace edu_years = 16 if edu == 5
+
+xi: reghdfe wage_log edu_years exp exp2, absorb(country)
 
 * Regress
 
-xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zsocial cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
+xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zcog_score cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
 estimates store skillreturns
 
 esttab skillreturns using "$tab6\skill_returns.tex", replace ///
@@ -246,7 +255,7 @@ foreach r of local regions {
 	preserve
 		keep if region == "`r'"
 		
-		xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zsocial cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
+		xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zcog_score cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
 		estimates store skill_`r'
 	
     restore
@@ -256,7 +265,6 @@ esttab skill_* using "$tab6\skill_returns_region.tex", replace ///
 	se label star(* 0.10 ** 0.05 *** 0.01) ///
 	title("Returns to Skills and Job Task Requirements: by Region")	///
 	collabels(`"`regions'"')
-
 
 
 * Replicate
