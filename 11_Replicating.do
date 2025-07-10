@@ -39,21 +39,27 @@ drop if occ_4 ==.
 rename occ_4 ISCO08Code
 drop if hours == .
 
+* Change to by country
 preserve
-	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(region)
+	collapse (mean) mean_hours = hours (sd) sd_hours = hours, by(country)
 	tempfile stats
 	save `stats'
 restore
 
-merge m:1 region using `stats', keepusing(mean_hours sd_hours)
+merge m:1 country using `stats', keepusing(mean_hours sd_hours)
 drop _merge
-gen zoverwork2 = hours > (mean_hours + sd_hours)
+gen longhours = hours > (mean_hours + sd_hours)
+
+gen over_longhrs = hours - longhours
+gen log_longhours = .
+replace log_longhours = log(longhours) if longhours > 0
 
 merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
-
 drop if ztask_abstract == .
 
-collapse (mean) ztask_abstract ztask_routine ztask_manual zoverwork2 weight, by(region occ1990x)
+egen zoverwork2 = std(log_longhours)
+
+collapse (mean) zoverwork2 ztask_abstract ztask_routine ztask_manual weight, by(region occ1990x)
 
 drop if region == ""
 levelsof region, local(regions)
@@ -209,9 +215,10 @@ merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
 
 egen zpvnum1 = std(pvnum1)
 egen zpvlit1 = std(pvlit1)
+egen zpsolve1 = std(pvpsl1)
 
 drop if missing(zpvnum1) & missing(zpvlit1)
-gen zcog_score = (zpvnum1 + zpvlit1)/2
+gen zcog_score = (zpvnum1 + zpsolve1)/2
 
 gen cog_abstract = zcog_score * ztask_abstract
 gen cog_routine = zcog_score * ztask_routine
@@ -222,10 +229,10 @@ gen cog_manual = zcog_score * ztask_manual
 
 * Create Social
 
-gen social = task_intrct_advise + task_intrct_coop + task_intrct_neg + task_intrct_present + task_intrct_sharing + task_intrct_teach
-encode social, gen(social_num)
-egen zsocial = std(social_num)
-drop if zsocial == .
+*gen social = task_intrct_advise + task_intrct_coop + task_intrct_neg + task_intrct_present + task_intrct_sharing + task_intrct_teach
+*encode social, gen(social_num)
+*egen zsocial = std(social_num)
+*drop if zsocial == .
 drop if wage_log == .
 
 *Mincerian Eq
@@ -237,11 +244,12 @@ replace edu_years = 12 if edu == 3
 replace edu_years = 14 if edu == 4
 replace edu_years = 16 if edu == 5
 
-xi: reghdfe wage_log edu_years exp exp2, absorb(country)
+
+xi: reghdfe wage_log edu_years age exp2 if country_code_3 == "FRA", vce(cluster occ1990x) 
 
 * Regress
 
-xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zcog_score cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
+xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zcog_score cog_abstract cog_routine cog_manual if country_code_3 == "CHL", absorb(edu age) vce(cluster occ1990x)
 estimates store skillreturns
 
 esttab skillreturns using "$tab6\skill_returns.tex", replace ///
@@ -249,13 +257,13 @@ esttab skillreturns using "$tab6\skill_returns.tex", replace ///
     title("Returns to Skills and Job Task Requirements")
 
 drop if region == ""
-levelsof region, local(regions)
+levelsof region, local(region)
 
-foreach r of local regions {
+foreach r of local region {
 	preserve
 		keep if region == "`r'"
 		
-		xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zcog_score cog_abstract cog_routine cog_manual, absorb(edu age country) vce(cluster occ1990x)
+		xi: reghdfe wage_log ztask_abstract ztask_routine ztask_manual zcog_score cog_abstract cog_routine cog_manual, absorb(country edu age) vce(cluster occ1990x)
 		estimates store skill_`r'
 	
     restore
@@ -264,9 +272,14 @@ foreach r of local regions {
 esttab skill_* using "$tab6\skill_returns_region.tex", replace ///
 	se label star(* 0.10 ** 0.05 *** 0.01) ///
 	title("Returns to Skills and Job Task Requirements: by Region")	///
-	collabels(`"`regions'"')
+	collabels(`"`country'"')
 
 
+	
+	
+	
+	
+	
 * Replicate
 
 use "$data\piaac_cleaned", clear
