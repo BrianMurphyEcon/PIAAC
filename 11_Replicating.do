@@ -31,10 +31,10 @@ save "$temp\taskmeasure_ISCO", replace // there are no duplicates in here either
 use "$data\piaac_cleaned", clear
 
 *Selection Statement
-keep if hours >=30
-keep if age >= 18
-keep if age <= 65
-keep if female == 0
+*keep if hours >=39
+keep if age >= 25
+keep if age <= 54
+*keep if female == 0
 drop if occ_4 ==.
 rename occ_4 ISCO08Code
 drop if hours == .
@@ -48,19 +48,30 @@ restore
 
 merge m:1 country using `stats', keepusing(mean_hours sd_hours)
 drop _merge
-gen longhours = hours > (mean_hours + sd_hours)
+gen longhours = hours - 39
 
-gen over_longhrs = hours - longhours
 gen log_longhours = .
 replace log_longhours = log(longhours) if longhours > 0
+
+gen log_hours = .
+replace log_hours = log(hours)
 
 merge m:1 ISCO08Code using "$temp\taskmeasure_ISCO", keep(3)
 drop if ztask_abstract == .
 
-egen zoverwork2 = std(log_longhours)
 
-collapse (mean) zoverwork2 ztask_abstract ztask_routine ztask_manual weight, by(region occ1990x)
+xi: reghdfe log_longhours female if hours >= 39, vce(cluster occ1990x)
+xi: reghdfe log_hours female, vce(cluster occ1990x)
 
+gen hours_cap = hours
+replace hours_cap = 40 if hours >= 40 
+
+gen log_hours_cap = .
+replace log_hours_cap = log(hours_cap)
+
+xi: reghdfe log_hours_cap female, vce(cluster occ1990x)
+
+collapse (mean) log_longhours log_hours ztask_abstract ztask_routine ztask_manual weight, by(region occ1990x)
 drop if region == ""
 levelsof region, local(regions)
 
@@ -71,8 +82,8 @@ foreach r of local regions {
 
     * Abstract vs Routine
     twoway ///
-        (lfitci ztask_abstract zoverwork2 [aweight=weight]) ///
-        (lfitci ztask_routine zoverwork2 [aweight=weight], clpattern(dash)), ///
+        (lfitci ztask_abstract log_longhours [aweight=weight]) ///
+        (lfitci ztask_routine log_longhours [aweight=weight], clpattern(dash)), ///
         xtitle("Long Hours (z-score)", size(small)) ///
         ytitle("Task Requirement (z-score)") ///
         legend(size(small) order(1 "Routine" 2 "Abstract")) ///
@@ -83,8 +94,8 @@ foreach r of local regions {
 
     * Abstract vs Manual
      twoway ///
-        (lfitci ztask_abstract zoverwork2 [aweight=weight]) ///
-        (lfitci ztask_manual zoverwork2 [aweight=weight], clpattern(dash)), ///
+        (lfitci ztask_abstract log_longhours [aweight=weight]) ///
+        (lfitci ztask_manual log_longhours [aweight=weight], clpattern(dash)), ///
         xtitle("Long Hours (z-score)", size(small)) ///
         ytitle("Task Requirement (z-score)") ///
         legend(size(small) order(1 "Manual" 2 "Abstract")) ///
@@ -100,7 +111,7 @@ foreach r of local regions {
         graphregion(color(white)) ///
         saving("$fig2\Figure2_region`r'.gph", replace)
 
-    graph export "$fig2\Figure2_region`r'.jpg", replace
+    graph export "$fig2\Figure2_region`r'_log_longhours.jpg", replace
 
 	erase "$fig2\region`r'_abstract_routine.gph"
 	erase "$fig2\region`r'_abstract_manual.gph"
@@ -415,3 +426,95 @@ foreach r of local regions {
     restore
 }
 
+
+*** Replicate Yona:
+
+use "$data/piaac_cleaned.dta", clear
+
+keep if inrange(age, 25, 54) & hours < .
+drop if occ_4==.
+rename occ_4 ISCO08Code
+
+gen longhours    = hours - 39
+gen log_hours    = log(hours)
+gen log_longhours = .
+replace log_longhours = log(longhours) if longhours>0
+
+merge m:1 ISCO08Code using "$temp/taskmeasure_ISCO.dta", keep(match using) nogenerate
+
+preserve
+
+gen log_m = log_hours if female==0
+gen log_f = log_hours if female==1
+gen d = 1
+
+collapse ///
+    (mean) mean_log_m = log_m ///
+    (mean) mean_log_f = log_f ///
+    (mean) z_abstract = ztask_abstract ///
+    (mean) z_routine = ztask_routine  ///
+    (mean) z_manual = ztask_manual   ///
+    (sum) obs = d, ///
+    by(occ1990x)
+
+
+gen dE = mean_log_m - mean_log_f
+
+
+twoway ///
+	   (lfitci z_abstract dE [aweight=obs], sort) ///
+	   (lfitci z_routine  dE [aweight=obs], sort clpattern(dash)), ///
+		title("Task Requirements (z‐scores) and the Gender Gap in Long Hours in `r'", ///
+			  size(small)) ///
+		xtitle("Gender Gap in Log Hours (Men − Women)") ///
+		ytitle("Task Requirement (z‐score)") ///
+		legend(order(2 "Abstract" 4 "Routine" 1 "95%CI") ///
+			   size(small)) ///
+		ylabel(-2(1)4) ///
+		graphregion(color(white))
+	
+graph export "$yona/PIAAC_Task_GenderGap.png", replace
+
+restore
+
+*** By Region
+gen log_m = log_hours if female==0
+gen log_f = log_hours if female==1
+gen d = 1
+
+collapse ///
+    (mean) mean_log_m=log_m ///
+    (mean) mean_log_f=log_f ///
+    (mean) z_abstract   = ztask_abstract ///
+    (mean) z_routine    = ztask_routine  ///
+    (mean) z_manual     = ztask_manual   ///
+    (sum) obs = d, ///
+    by(region occ1990x)
+
+gen dE = mean_log_m - mean_log_f
+
+drop if region == ""
+levelsof region, local(regions)
+
+foreach r of local regions {
+
+preserve 
+    keep if region == "`r'"
+	
+	twoway ///
+	   (lfitci z_abstract dE [aweight=obs], sort) ///
+	   (lfitci z_routine  dE [aweight=obs], sort clpattern(dash)), ///
+		title("Task Requirements (z‐scores) and the Gender Gap in Long Hours in `r'", ///
+			  size(small)) ///
+		xtitle("Gender Gap in Log Hours (Men − Women)") ///
+		ytitle("Task Requirement (z‐score)") ///
+		legend(order(2 "Abstract" 4 "Routine" 1 "95%CI") ///
+			   size(small)) ///
+		ylabel(-2(1)4) ///
+		graphregion(color(white))
+	
+graph export "$yona/PIAAC_Task_GenderGap_`r'.png", replace
+
+restore
+}
+clear

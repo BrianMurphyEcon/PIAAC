@@ -23,6 +23,7 @@ global output         "$main\Output"
 	global tab1		  "$output\Table1"
 	global tab3		  "$output\Table3"
 	global tab6		  "$output\Table6"
+	global yona		  "$output\Yona"			
 
 *** Run .do Files ***
 do "$code\01_Create Dataset"
